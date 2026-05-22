@@ -3,45 +3,56 @@
  */
 
 import { get as t } from "../i18n/messages.js";
+import { ok, err } from "./result.js";
+
+/**
+ * Processes the extraction response and returns a result.
+ * @param {any} response
+ * @returns {Result<{ data: TranscriptRow[], videoTitle: string }>}
+ */
+function handleResponse(response) {
+  if (!response) {
+    return err(t("noResponse"));
+  }
+
+  if (!response.success) {
+    return err(response.error || t("extractionFailed"));
+  }
+
+  const { data, videoTitle } = response;
+  if (!data || data.length === 0) {
+    return err(t("noLinesFound"));
+  }
+
+  return ok({ data, videoTitle });
+}
+
+/**
+ * Applies progress feedback and settles the promise with the result.
+ * @param {Result<{ data: TranscriptRow[], videoTitle: string }>} result
+ * @param {(text: string, level: string) => void} onProgress
+ * @param {(result: Result<{ data: TranscriptRow[], videoTitle: string }>) => void} resolve
+ */
+function settleResult(result, onProgress, resolve) {
+  if (result.ok) {
+    onProgress(t("extractedRows", [String(result.value.data.length)]), "success");
+    resolve(result);
+    return;
+  }
+
+  onProgress(result.error, "error");
+  resolve(result);
+}
 
 /**
  * Initiates the transcript extraction from the specified tab.
  * @param {number} tabId
  * @param {(text: string, level: string) => void} onProgress
- * @returns {Promise<{ data: TranscriptRow[], videoTitle: string }>} Resolves with extraction data.
+ * @returns {Promise<Result<{ data: TranscriptRow[], videoTitle: string }>>}
  */
 export function requestTranscript(tabId, onProgress) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     onProgress(t("contactingScraper"), "working");
-
-    /**
-     * Callback handling the extraction message response.
-     * @param {any} response
-     */
-    function handleResponse(response) {
-      if (!response) {
-        onProgress(t("noResponse"), "error");
-        reject(new Error(t("noResponse")));
-        return;
-      }
-
-      if (!response.success) {
-        const errorMsg = response.error || t("extractionFailed");
-        onProgress(errorMsg, "error");
-        reject(new Error(errorMsg));
-        return;
-      }
-
-      const { data, videoTitle } = response;
-      if (!data || data.length === 0) {
-        onProgress(t("noLinesFound"), "error");
-        reject(new Error(t("noLinesFound")));
-        return;
-      }
-
-      onProgress(t("extractedRows", [String(data.length)]), "success");
-      resolve({ data, videoTitle });
-    }
 
     /**
      * Sends the extract command. Injects the content script as fallback.
@@ -52,12 +63,11 @@ export function requestTranscript(tabId, onProgress) {
         { action: "extractTranscript" },
         (response) => {
           if (!chrome.runtime.lastError) {
-            handleResponse(response);
+            settleResult(handleResponse(response), onProgress, resolve);
             return;
           }
 
           onProgress(t("scraperNotLoaded"), "info");
-          // Inject script dynamically (Paths here are relative to the extension root directory)
           chrome.scripting.executeScript(
             {
               target: { tabId: tabId },
@@ -66,12 +76,18 @@ export function requestTranscript(tabId, onProgress) {
             () => {
               if (!chrome.runtime.lastError) {
                 onProgress(t("scraperSuccess"), "success");
-                // Retry with a small delay for initialization
                 setTimeout(() => {
                   chrome.tabs.sendMessage(
                     tabId,
                     { action: "extractTranscript" },
-                    handleResponse,
+                    (retryResponse) => {
+                      if (!chrome.runtime.lastError) {
+                        settleResult(handleResponse(retryResponse), onProgress, resolve);
+                        return;
+                      }
+
+                      resolve(err(t("initError")));
+                    },
                   );
                 }, 300);
 
@@ -82,8 +98,7 @@ export function requestTranscript(tabId, onProgress) {
                 "Content script injection failed:",
                 chrome.runtime.lastError,
               );
-              onProgress(t("initError"), "error");
-              reject(new Error(t("initError")));
+              resolve(err(t("initError")));
             },
           );
         },

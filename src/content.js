@@ -25,46 +25,42 @@
    * @param {(response?: any) => void} sendResponse
    */
   async function handleExtraction(sendResponse) {
-    try {
-      // 1. Verify Watch URL
-      if (!window.location.pathname.includes('/watch')) {
-        throw new Error('Please navigate to a YouTube video page to export transcripts.');
-      }
+    // 1. Verify Watch URL
+    if (!window.location.pathname.includes('/watch')) {
+      sendResponse({ success: false, error: 'Please navigate to a YouTube video page to export transcripts.' });
+      return;
+    }
 
-      // 2. Query already open transcript panel
-      let panel = getTranscriptPanel();
-      let segments = panel ? panel.querySelectorAll('ytd-transcript-segment-renderer') : [];
+    // 2. Query already open transcript panel
+    let panel = getTranscriptPanel();
+    let segments = panel ? panel.querySelectorAll('ytd-transcript-segment-renderer') : [];
 
-      if (panel && segments.length > 0) {
-        console.log('[Transcript Exporter] Transcript panel is already open. Scraping directly.');
-        const data = extractTranscriptData(panel);
-        sendResponse({ success: true, data, videoTitle: getVideoTitle() });
-        return;
-      }
-
-      // 3. Click search/open button
-      console.log('[Transcript Exporter] Locating transcript button.');
-      const clickedBtn = await locateAndClickTranscriptButton();
-      if (!clickedBtn) {
-        throw new Error('Could not locate the transcript button. Please verify transcripts are available for this video.');
-      }
-
-      // 4. Poll for panel rendering
-      console.log('[Transcript Exporter] Button clicked. Waiting for panel load.');
-      panel = await waitForTranscriptPanel();
-      if (!panel) {
-        throw new Error('Transcript panel could not be loaded.');
-      }
-
-      console.log('[Transcript Exporter] Panel loaded successfully. Parsing rows.');
+    if (panel && segments.length > 0) {
+      console.log('[Transcript Exporter] Transcript panel is already open. Scraping directly.');
       const data = extractTranscriptData(panel);
       sendResponse({ success: true, data, videoTitle: getVideoTitle() });
-
-    } catch (error) {
-      console.error('[Transcript Exporter] Extraction sequence failed:', error);
-      const errMsg = error instanceof Error ? error.message : String(error);
-      sendResponse({ success: false, error: errMsg });
+      return;
     }
+
+    // 3. Click search/open button
+    console.log('[Transcript Exporter] Locating transcript button.');
+    const clickedBtn = await locateAndClickTranscriptButton();
+    if (!clickedBtn) {
+      sendResponse({ success: false, error: 'Could not locate the transcript button. Please verify transcripts are available for this video.' });
+      return;
+    }
+
+    // 4. Poll for panel rendering
+    console.log('[Transcript Exporter] Button clicked. Waiting for panel load.');
+    panel = await waitForTranscriptPanel();
+    if (!panel) {
+      sendResponse({ success: false, error: 'Transcript panel could not be loaded. Timed out waiting for the transcript panel. Please make sure the video transcript is not empty.' });
+      return;
+    }
+
+    console.log('[Transcript Exporter] Panel loaded successfully. Parsing rows.');
+    const data = extractTranscriptData(panel);
+    sendResponse({ success: true, data, videoTitle: getVideoTitle() });
   }
 
   /**
@@ -235,10 +231,10 @@
   /**
    * A polling promise helper that resolves once transcript elements are fully active in DOM.
    * @param {number} timeoutMs
-   * @returns {Promise<Element>}
+   * @returns {Promise<Element | null>}
    */
   function waitForTranscriptPanel(timeoutMs = 12000) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const startTime = Date.now();
 
       const interval = setInterval(() => {
@@ -254,7 +250,7 @@
 
         if (Date.now() - startTime > timeoutMs) {
           clearInterval(interval);
-          reject(new Error('Timed out waiting for the transcript panel to load. Please make sure the video transcript is not empty.'));
+          resolve(null);
         }
       }, 250);
     });

@@ -2,21 +2,22 @@
  * @fileoverview DOM interaction utilities.
  */
 
+import { ok, err } from './result.js';
+
 /**
- * Safe wrapper to find and cast a DOM element or raise an error if missing.
+ * Safe wrapper to find and cast a DOM element or return an error result if missing.
  * @template {HTMLElement} T
  * @param {string} id
- * @param {new () => T} typeClass
- * @returns {T}
- * @throws {Error} If the element is not found or is of wrong type.
+ * @param {new () => T} T
+ * @returns {Result<T>}
  */
-export function requireElement(id, typeClass) {
+export function requireElement(id, T) {
   const el = document.getElementById(id);
   if (!el) {
-    throw new Error(`DOM Element with id "${id}" was not found.`);
+    return err(`DOM Element with id "${id}" was not found.`);
   }
-  if (!(el instanceof typeClass)) {
-    throw new Error(`DOM Element with id "${id}" is not an instance of ${typeClass.name}.`);
+  if (!(el instanceof T)) {
+    return err(`DOM Element with id "${id}" is not an instance of ${T.name}.`);
   }
-  return el;
+  return ok(el);
 }

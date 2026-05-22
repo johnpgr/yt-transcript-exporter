@@ -3,6 +3,7 @@
  */
 
 import { get as t } from '../i18n/messages.js';
+import { ok, err } from './result.js';
 
 /**
  * @typedef {Object} FormatterOptions
@@ -27,14 +28,14 @@ export function registerFormatter(formatName, formatterFn) {
  * @param {TranscriptRow[]} data
  * @param {string} videoTitle
  * @param {FormatterOptions} options
- * @returns {string}
+ * @returns {Result<string>}
  */
 export function format(formatName, data, videoTitle, options) {
   const formatter = registry[formatName];
   if (!formatter) {
-    throw new Error(`No formatter registered for type: ${formatName}`);
+    return err(`No formatter registered for type: ${formatName}`);
   }
-  return formatter(data, videoTitle, options);
+  return ok(formatter(data, videoTitle, options));
 }
 
 // Register Built-in Markdown Formatter
@@ -51,11 +52,9 @@ registerFormatter('md', (data, videoTitle, options) => {
   content += `---\n\n`;
 
   data.forEach((line) => {
-    if (options.includeTimestamps && line.timestamp) {
-      content += `**[${line.timestamp}]** ${line.text}\n\n`;
-    } else {
-      content += `${line.text}\n\n`;
-    }
+    content += options.includeTimestamps && line.timestamp
+      ? `**[${line.timestamp}]** ${line.text}\n\n`
+      : `${line.text}\n\n`;
   });
 
   return content;
@@ -65,11 +64,9 @@ registerFormatter('md', (data, videoTitle, options) => {
 registerFormatter('txt', (data, videoTitle, options) => {
   let content = '';
   data.forEach((line) => {
-    if (options.includeTimestamps && line.timestamp) {
-      content += `[${line.timestamp}] ${line.text}\n`;
-    } else {
-      content += `${line.text}\n`;
-    }
+    content += options.includeTimestamps && line.timestamp
+      ? `[${line.timestamp}] ${line.text}\n`
+      : `${line.text}\n`;
   });
   return content;
 });

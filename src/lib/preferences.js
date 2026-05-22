@@ -2,6 +2,8 @@
  * @fileoverview User preferences management wrapper for Chrome storage.
  */
 
+import { IS_CHROME } from './chrome-env.js';
+
 /**
  * @typedef {Object} Preferences
  * @property {boolean} includeTimestamps
@@ -20,7 +22,7 @@ const DEFAULTS = {
  */
 export function load() {
   return new Promise((resolve) => {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    if (IS_CHROME && chrome.storage && chrome.storage.local) {
       chrome.storage.local.get(
         ['includeTimestamps', 'exportFormat'],
         (result) => {
@@ -30,9 +32,10 @@ export function load() {
           });
         }
       );
-    } else {
-      resolve({ ...DEFAULTS });
+      return;
     }
+
+    resolve({ ...DEFAULTS });
   });
 }
 
@@ -43,12 +46,13 @@ export function load() {
  */
 export function save(prefs) {
   return new Promise((resolve) => {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    if (IS_CHROME && chrome.storage && chrome.storage.local) {
       chrome.storage.local.set(prefs, () => {
         resolve();
       });
-    } else {
-      resolve();
+      return;
     }
+
+    resolve();
   });
 }

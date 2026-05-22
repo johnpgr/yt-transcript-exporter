@@ -2,6 +2,8 @@
  * @fileoverview Centralized i18n accessors and page translation utility.
  */
 
+import { IS_CHROME } from '../lib/chrome-env.js';
+
 /**
  * Retrieves the localized string for the given key and substitutions.
  * @param {string} key
@@ -9,7 +11,7 @@
  * @returns {string}
  */
 export function get(key, substitutions) {
-  if (typeof chrome !== 'undefined' && chrome.i18n) {
+  if (IS_CHROME && chrome.i18n) {
     return chrome.i18n.getMessage(key, substitutions) || key;
   }
   return key;
