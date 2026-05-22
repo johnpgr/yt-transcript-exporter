@@ -1,9 +1,7 @@
 /**
- * YouTube Transcript Exporter - Content Script
- * 
- * Injected into YouTube video pages to interact with the DOM,
- * locate/click the transcript button, wait for the panel to load,
- * and extract the transcript text + timestamps.
+ * @fileoverview YouTube Transcript Exporter Content Script.
+ * Injected into YouTube Watch tabs to query transcripts structurally or keyword-based,
+ * wait for the DOM load sequence, and extract clean text and timestamp rows.
  */
 
 (() => {
@@ -17,79 +15,87 @@
     (request, sender, sendResponse) => {
       if (request.action === 'extractTranscript') {
         handleExtraction(sendResponse);
-        return true; // Keep message channel open for asynchronous response
+        return true; // Keep message channel open for asynchronous responses
       }
     }
   );
 
   /**
-   * Main orchestrator for expanding, clicking, and extracting the transcript
+   * Orchestrates the description expansion, clicking, and extracting.
    * @param {(response?: any) => void} sendResponse
    */
   async function handleExtraction(sendResponse) {
     try {
-      // 1. Check if we're on a video page
+      // 1. Verify Watch URL
       if (!window.location.pathname.includes('/watch')) {
         throw new Error('Please navigate to a YouTube video page to export transcripts.');
       }
 
-      // 2. See if the transcript panel is already open
+      // 2. Query already open transcript panel
       let panel = getTranscriptPanel();
       let segments = panel ? panel.querySelectorAll('ytd-transcript-segment-renderer') : [];
 
       if (panel && segments.length > 0) {
-        console.log('[Transcript Exporter] Panel already open. Scraping directly.');
+        console.log('[Transcript Exporter] Transcript panel is already open. Scraping directly.');
         const data = extractTranscriptData(panel);
         sendResponse({ success: true, data, videoTitle: getVideoTitle() });
         return;
       }
 
-      // 3. Otherwise, click button & wait for load
+      // 3. Click search/open button
       console.log('[Transcript Exporter] Locating transcript button.');
-      let btn = await locateAndClickTranscriptButton();
-      if (!btn) {
-        throw new Error('Could not find the "Mostrar transcrição" / "Show transcript" button. Please make sure the video has transcripts available.');
+      const clickedBtn = await locateAndClickTranscriptButton();
+      if (!clickedBtn) {
+        throw new Error('Could not locate the transcript button. Please verify transcripts are available for this video.');
       }
 
-      console.log('[Transcript Exporter] Transcript button clicked. Waiting for panel load.');
+      // 4. Poll for panel rendering
+      console.log('[Transcript Exporter] Button clicked. Waiting for panel load.');
       panel = await waitForTranscriptPanel();
       if (!panel) {
         throw new Error('Transcript panel could not be loaded.');
       }
-      
-      console.log('[Transcript Exporter] Panel loaded. Extracting data.');
+
+      console.log('[Transcript Exporter] Panel loaded successfully. Parsing rows.');
       const data = extractTranscriptData(panel);
       sendResponse({ success: true, data, videoTitle: getVideoTitle() });
 
     } catch (error) {
-      console.error('[Transcript Exporter] Extraction failed:', error);
+      console.error('[Transcript Exporter] Extraction sequence failed:', error);
       const errMsg = error instanceof Error ? error.message : String(error);
       sendResponse({ success: false, error: errMsg });
     }
   }
 
   /**
-   * Finds the transcript panel renderer in the DOM
+   * Retrieves the transcript panel DOM renderer if active.
+   * @returns {Element | null}
    */
   function getTranscriptPanel() {
-    return document.querySelector('ytd-transcript-renderer, ytd-transcript-search-panel-renderer, #content ytd-transcript-renderer');
+    return document.querySelector(
+      'ytd-transcript-renderer, ytd-transcript-search-panel-renderer, #content ytd-transcript-renderer'
+    );
   }
 
   /**
-   * Helper to retrieve the current video's title
+   * Retrieves the current video's title from Watch metadata.
+   * @returns {string}
    */
   function getVideoTitle() {
-    const titleEl = document.querySelector('ytd-watch-metadata h1 yt-formatted-string, #container h1 ytd-video-primary-info-renderer yt-formatted-string, h1.title');
-    return titleEl ? titleEl.textContent.trim() : 'YouTube Video';
+    const titleEl = document.querySelector(
+      'ytd-watch-metadata h1 yt-formatted-string, #container h1 ytd-video-primary-info-renderer yt-formatted-string, h1.title'
+    );
+    return titleEl ? titleEl.textContent?.trim() ?? 'YouTube Video' : 'YouTube Video';
   }
 
   /**
-   * Programmatically expands the description box if it is collapsed
+   * Expands the main video description expander if closed.
+   * @returns {boolean} True if expansion was triggered.
    */
   function expandDescription() {
-    console.log('[Transcript Exporter] Attempting to expand description box...');
-    
-    // List of common selectors for expanding description
+    console.log('[Transcript Exporter] Attempting description expand...');
+
+    // Selectors for description expansion buttons
     const expandSelectors = [
       '#expand',
       'tp-yt-paper-button#expand',
@@ -98,9 +104,9 @@
       'ytd-video-description-infocards-section-renderer #expand-button'
     ];
 
-    for (const sel of expandSelectors) {
-      const expandBtn = /** @type {HTMLElement | null} */ (document.querySelector(sel));
-      if (expandBtn && expandBtn.offsetParent !== null) { // visible in DOM
+    for (const selector of expandSelectors) {
+      const expandBtn = /** @type {HTMLElement | null} */ (document.querySelector(selector));
+      if (expandBtn && expandBtn.offsetParent !== null) { // Element is visible
         expandBtn.click();
         return true;
       }
@@ -109,18 +115,55 @@
   }
 
   /**
-   * Finds the "Show transcript" button using precise selectors and loose text/role fallbacks
+   * Checks if a string contains words matching "transcript" or its translations.
+   * @param {string} text
+   * @returns {boolean}
+   */
+  function matchesTranscriptKeywords(text) {
+    const lower = text.toLowerCase();
+    
+    // Multilingual keywords for "transcript" or "show transcript"
+    const keywords = [
+      'transcri',     // transcrição, transcription, transcripción, transcript, transkript
+      'trascri',      // trascrizione
+      'transcriptie', // Dutch
+      '文字起こし',     // Japanese
+      '스크립트',      // Korean
+      '자막',          // Korean alternative
+      '文字记录',      // Chinese Simp
+      '文字記錄',      // Chinese Trad
+      'расшифровк',   // Russian (расшифровка)
+      'транскрипт',   // Russian alternative
+      'प्रतिलेख',       // Hindi
+      'نسخة',         // Arabic
+      'bản chép lời'  // Vietnamese
+    ];
+
+    return keywords.some(kw => lower.includes(kw));
+  }
+
+  /**
+   * Resolves the transcript button structurally or with keyword heuristics.
+   * @returns {HTMLElement | null}
    */
   function findTranscriptButton() {
-    // 1. Try the precise user-supplied selector
-    let btn = /** @type {HTMLElement | null} */ (document.querySelector('#primary-button > ytd-button-renderer > yt-button-shape > button'));
-    if (btn && btn.offsetParent !== null) return btn;
+    // Priority 1: Direct structural selectors that YouTube uses specifically for transcripts
+    const structuralSelectors = [
+      'ytd-video-description-transcript-section-renderer button',
+      'ytd-video-description-transcript-section-renderer ytd-button-renderer button',
+      'ytd-video-description-infocards-section-renderer ytd-button-renderer button',
+      '#primary-button > ytd-button-renderer > yt-button-shape > button',
+      '#primary-button ytd-button-renderer button'
+    ];
 
-    // 2. Try variations of the user selector
-    btn = /** @type {HTMLElement | null} */ (document.querySelector('#primary-button ytd-button-renderer button'));
-    if (btn && btn.offsetParent !== null) return btn;
+    for (const selector of structuralSelectors) {
+      const btn = /** @type {HTMLElement | null} */ (document.querySelector(selector));
+      if (btn && btn.offsetParent !== null) {
+        return btn;
+      }
+    }
 
-    // 3. Search within typical description containers for transcript keywords
+    // Priority 2: Attribute-based matching on containers inside typical video description zones
     const descriptionContainers = [
       '#description',
       'ytd-video-description-infocards-section-renderer',
@@ -133,10 +176,13 @@
       const container = document.querySelector(containerSel);
       if (container) {
         const buttons = container.querySelectorAll('button, ytd-button-renderer, tp-yt-paper-button');
-        for (const b of buttons) {
-          const txt = b.textContent ? b.textContent.trim().toLowerCase() : '';
-          if (txt.includes('transcri') || txt.includes('transcript')) {
-            const actualButton = /** @type {HTMLElement | null} */ (b.tagName === 'BUTTON' ? b : b.querySelector('button'));
+        for (const btn of buttons) {
+          // Check text content keywords
+          const text = btn.textContent ? btn.textContent.trim() : '';
+          if (matchesTranscriptKeywords(text)) {
+            const actualButton = /** @type {HTMLElement | null} */ (
+              btn.tagName === 'BUTTON' ? btn : btn.querySelector('button')
+            );
             if (actualButton && actualButton.offsetParent !== null) {
               return actualButton;
             }
@@ -145,12 +191,14 @@
       }
     }
 
-    // 4. Global fallback search for buttons containing transcript keywords
+    // Priority 3: Global fallback scan of all document buttons for transcript translations
     const allButtons = document.querySelectorAll('button, ytd-button-renderer, tp-yt-paper-button');
-    for (const b of allButtons) {
-      const txt = b.textContent ? b.textContent.trim().toLowerCase() : '';
-      if (txt.includes('mostrar transcri') || txt.includes('show transcript')) {
-        const actualButton = /** @type {HTMLElement | null} */ (b.tagName === 'BUTTON' ? b : b.querySelector('button'));
+    for (const btn of allButtons) {
+      const text = btn.textContent ? btn.textContent.trim() : '';
+      if (matchesTranscriptKeywords(text)) {
+        const actualButton = /** @type {HTMLElement | null} */ (
+          btn.tagName === 'BUTTON' ? btn : btn.querySelector('button')
+        );
         if (actualButton && actualButton.offsetParent !== null) {
           return actualButton;
         }
@@ -161,7 +209,8 @@
   }
 
   /**
-   * Attempts to locate and click the transcript button, including description expansion
+   * Helper that attempts to locate and click the transcript button, expands desc if required.
+   * @returns {Promise<HTMLElement | null>}
    */
   async function locateAndClickTranscriptButton() {
     let btn = findTranscriptButton();
@@ -170,9 +219,9 @@
       return btn;
     }
 
-    // If not found, try to expand the description box first
+    // Attempt expanding description to reveal target button
     expandDescription();
-    await new Promise(resolve => setTimeout(resolve, 600)); // wait for transition
+    await new Promise(resolve => setTimeout(resolve, 600)); // Sleep for expand transition
 
     btn = findTranscriptButton();
     if (btn) {
@@ -184,12 +233,14 @@
   }
 
   /**
-   * Polling-based promise that waits for the transcript panel to load in the DOM
+   * A polling promise helper that resolves once transcript elements are fully active in DOM.
+   * @param {number} timeoutMs
+   * @returns {Promise<Element>}
    */
   function waitForTranscriptPanel(timeoutMs = 12000) {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
-      
+
       const interval = setInterval(() => {
         const panel = getTranscriptPanel();
         if (panel) {
@@ -210,7 +261,7 @@
   }
 
   /**
-   * Extract timestamp and text text from the loaded transcript panel elements
+   * Parses time string and transcript segments into object records.
    * @param {Element} panel
    * @returns {{timestamp: string, text: string}[]}
    */
@@ -219,12 +270,10 @@
     /** @type {{timestamp: string, text: string}[]} */
     const results = [];
 
-    segments.forEach((/** @type {Element} */ segment) => {
-      // Find timestamp element (usually has class containing timestamp, or is a nested button/span)
+    segments.forEach((segment) => {
       const timestampEl = segment.querySelector('.segment-timestamp, [class*="timestamp"], button, .segment-timestamp-wrapper');
       const timestamp = timestampEl ? timestampEl.textContent?.trim() ?? '' : '';
 
-      // Find text element (usually has class containing text, or yt-formatted-string)
       const textEl = segment.querySelector('.segment-text, [class*="text"], yt-formatted-string, span');
       const text = textEl ? textEl.textContent?.trim() ?? '' : '';
 

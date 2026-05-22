@@ -1,0 +1,95 @@
+{
+  "appName": {
+    "message": "YT Transcrição"
+  },
+  "appDesc": {
+    "message": "Abre e exporta automaticamente transcrições do YouTube para arquivos limpos em TXT ou Markdown com timestamps opcionais."
+  },
+  "includeTimestampsLabel": {
+    "message": "Incluir Timestamps"
+  },
+  "includeTimestampsDesc": {
+    "message": "Adiciona indicadores de tempo a cada linha"
+  },
+  "exportFormatLabel": {
+    "message": "Formato de Exportação"
+  },
+  "exportFormatDesc": {
+    "message": "Escolha a estrutura do arquivo de saída"
+  },
+  "exportBtnLabel": {
+    "message": "Exportar Transcrição"
+  },
+  "progressLogsLabel": {
+    "message": "Logs de Progresso"
+  },
+  "readyToExtract": {
+    "message": "Pronto para extrair."
+  },
+  "findingTab": {
+    "message": "Localizando aba ativa do YouTube..."
+  },
+  "noActiveTab": {
+    "message": "Nenhuma janela ou aba ativa do navegador detectada."
+  },
+  "notWatchPage": {
+    "message": "A aba ativa não é uma página de vídeo do YouTube. Por favor, abra um vídeo primeiro."
+  },
+  "invalidTabId": {
+    "message": "O ID da aba ativa é inválido."
+  },
+  "contactingScraper": {
+    "message": "Contatando o extrator da página..."
+  },
+  "scraperNotLoaded": {
+    "message": "Extrator não carregado. Injetando script de extração..."
+  },
+  "initError": {
+    "message": "Não foi possível inicializar o extrator. Por favor, recarregue a página do YouTube."
+  },
+  "scraperSuccess": {
+    "message": "Extrator carregado com sucesso. Reiniciando busca..."
+  },
+  "noResponse": {
+    "message": "Sem resposta da página. Por favor, recarregue a aba do YouTube."
+  },
+  "noLinesFound": {
+    "message": "Nenhuma linha encontrada na transcrição."
+  },
+  "extractedRows": {
+    "message": "Extraídas $1 linhas de transcrição com sucesso!",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
+  },
+  "assemblingExport": {
+    "message": "Compilando dados de exportação em $1...",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
+  },
+  "exportedOn": {
+    "message": "Exportado em $1",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
+  },
+  "headerDocTitle": {
+    "message": "Exportador de Transcrição do YouTube"
+  },
+  "headerVideoLabel": {
+    "message": "Vídeo"
+  },
+  "launchingDownload": {
+    "message": "Iniciando download do arquivo no navegador..."
+  },
+  "downloadComplete": {
+    "message": "Download concluído! Arquivo salvo."
+  }
+}

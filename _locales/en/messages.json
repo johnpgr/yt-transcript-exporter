@@ -1,0 +1,95 @@
+{
+  "appName": {
+    "message": "YT Transcript"
+  },
+  "appDesc": {
+    "message": "Automatically opens and exports YouTube transcripts to clean TXT or Markdown files with optional timestamps."
+  },
+  "includeTimestampsLabel": {
+    "message": "Include Timestamps"
+  },
+  "includeTimestampsDesc": {
+    "message": "Add time indicators to each line"
+  },
+  "exportFormatLabel": {
+    "message": "Export Format"
+  },
+  "exportFormatDesc": {
+    "message": "Choose the output file structure"
+  },
+  "exportBtnLabel": {
+    "message": "Export Transcript"
+  },
+  "progressLogsLabel": {
+    "message": "Progress Logs"
+  },
+  "readyToExtract": {
+    "message": "Ready to extract."
+  },
+  "findingTab": {
+    "message": "Finding active YouTube watch tab..."
+  },
+  "noActiveTab": {
+    "message": "No active browser window or tab detected."
+  },
+  "notWatchPage": {
+    "message": "Active tab is not a YouTube watch page. Please open a video first."
+  },
+  "invalidTabId": {
+    "message": "Active tab ID is invalid."
+  },
+  "contactingScraper": {
+    "message": "Contacting YouTube page scraper..."
+  },
+  "scraperNotLoaded": {
+    "message": "Scraper not loaded. Injecting content script..."
+  },
+  "initError": {
+    "message": "Could not initialize the scraper. Please reload your YouTube page."
+  },
+  "scraperSuccess": {
+    "message": "Scraper loaded successfully. Restarting search..."
+  },
+  "noResponse": {
+    "message": "No response from the page. Please reload the YouTube tab."
+  },
+  "noLinesFound": {
+    "message": "No lines found inside the transcript."
+  },
+  "extractedRows": {
+    "message": "Extracted $1 transcript rows successfully!",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
+  },
+  "assemblingExport": {
+    "message": "Assembling $1 export data...",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
+  },
+  "exportedOn": {
+    "message": "Exported on $1",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
+  },
+  "headerDocTitle": {
+    "message": "YouTube Transcript Exporter"
+  },
+  "headerVideoLabel": {
+    "message": "Video"
+  },
+  "launchingDownload": {
+    "message": "Launching browser file download..."
+  },
+  "downloadComplete": {
+    "message": "Download complete! File saved."
+  }
+}

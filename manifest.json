@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Transcript Exporter",
+  "name": "__MSG_appName__",
   "version": "1.0.0",
-  "description": "Automatically opens and exports YouTube transcripts to clean TXT or Markdown files with optional timestamps.",
+  "description": "__MSG_appDesc__",
+  "default_locale": "en",
   "permissions": [
     "activeTab",
     "scripting"

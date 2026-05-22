@@ -1,271 +1,132 @@
 /**
- * YouTube Transcript Exporter - Popup Controller
- *
- * Manages states, triggers tab communication, handles automatic script injection,
- * formats transcripts (TXT/MD), and executes file downloads.
+ * @fileoverview Main entry point and orchestrator for the YouTube Transcript Exporter popup.
+ * Wires DOM events, state persistence, extraction coordinating, and format compilation.
  */
 
-const raise = (/** @type {string} */ message) => {
-  throw new Error(message);
-}
+import * as i18n from './i18n/messages.js';
+import * as dom from './lib/dom.js';
+import * as preferences from './lib/preferences.js';
+import * as transcript from './lib/transcript.js';
+import * as formatters from './lib/formatters.js';
+import * as download from './lib/download.js';
 
-document.addEventListener("DOMContentLoaded", () => {
-  const timestampToggle = /** @type {HTMLInputElement} */ (document.getElementById("timestampToggle") ?? raise("Timestamp toggle element not found"));
-  const formatTxt = /** @type {HTMLInputElement} */ (document.getElementById("formatTxt") ?? raise("TXT format radio element not found"));
-  const formatMd = /** @type {HTMLInputElement} */ (document.getElementById("formatMd") ?? raise("MD format radio element not found"));
-  const exportBtn = /** @type {HTMLButtonElement} */ (document.getElementById("exportBtn") ?? raise("Export button element not found"));
-  const statusPanel = /** @type {HTMLDivElement} */ (document.getElementById("statusPanel") ?? raise("Status panel element not found"));
-  const statusDot = /** @type {HTMLSpanElement} */ (document.getElementById("statusDot") ?? raise("Status dot element not found"));
-  const logsContainer = /** @type {HTMLDivElement} */ (document.getElementById("logsContainer") ?? raise("Logs container element not found"));
+document.addEventListener('DOMContentLoaded', async () => {
+  // Translate page to browser locale first
+  i18n.translatePage();
 
-  // Retrieve saved preferences from Chrome storage
-  if (chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(
-      ["includeTimestamps", "exportFormat"],
-      (result) => {
-        if (result.includeTimestamps != null) {
-          timestampToggle.checked = Boolean(result.includeTimestamps);
-        }
-        if (result.exportFormat === "txt") {
-          formatTxt.checked = true;
-        } else if (result.exportFormat === "md") {
-          formatMd.checked = true;
-        }
-      },
-    );
-  }
+  // Acquired elements safely with typescript types
+  const timestampToggle = dom.requireElement('timestampToggle', HTMLInputElement);
+  const formatTxt = dom.requireElement('formatTxt', HTMLInputElement);
+  const formatMd = dom.requireElement('formatMd', HTMLInputElement);
+  const exportBtn = dom.requireElement('exportBtn', HTMLButtonElement);
+  const statusPanel = dom.requireElement('statusPanel', HTMLDivElement);
+  const statusDot = dom.requireElement('statusDot', HTMLSpanElement);
+  const logsContainer = dom.requireElement('logsContainer', HTMLDivElement);
 
-  // Save changes to storage to preserve state
-  function savePreferences() {
-    if (chrome.storage && chrome.storage.local) {
-      const format = formatTxt.checked ? "txt" : "md";
-      chrome.storage.local.set({
-        includeTimestamps: timestampToggle.checked,
-        exportFormat: format,
-      });
+  // Load and apply saved preferences
+  try {
+    const prefs = await preferences.load();
+    timestampToggle.checked = prefs.includeTimestamps;
+    if (prefs.exportFormat === 'txt') {
+      formatTxt.checked = true;
+    } else {
+      formatMd.checked = true;
     }
+  } catch (err) {
+    console.error('Failed to load preferences:', err);
   }
-
-  // Attach event listeners for setting updates
-  timestampToggle.addEventListener("change", savePreferences);
-  formatTxt.addEventListener("change", savePreferences);
-  formatMd.addEventListener("change", savePreferences);
-
-  // Trigger transcript export sequence
-  exportBtn.addEventListener("click", async () => {
-    // Reset status drawer and display it
-    logsContainer.innerHTML = "";
-    statusPanel.classList.remove("collapsed");
-    updateStatus("active");
-    addLog("Finding active YouTube watch tab...", "working");
-
-    try {
-      // Query the currently active tab
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      if (!tab) {
-        throw new Error("No active browser window/tab detected.");
-      }
-
-      // Verify page is a YouTube Watch URL
-      if (!tab.url || !tab.url.includes("youtube.com/watch")) {
-        throw new Error(
-          "Active tab is not a YouTube video page. Please open a video first.",
-        );
-      }
-
-      if (tab.id === undefined) {
-        throw new Error("Active tab ID is invalid.");
-      }
-
-      addLog("Contacting YouTube page scraper...", "working");
-      sendMessageWithInjectionFallback(tab.id);
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      addLog(errMsg, "error");
-      updateStatus("error");
-    }
-  });
 
   /**
-   * Sets the visual state of the pulsing indicator dot
-   * @param {string} state
+   * Reads settings from the DOM and persists them.
    */
-  function updateStatus(state) {
+  async function saveSettings() {
+    try {
+      await preferences.save({
+        includeTimestamps: timestampToggle.checked,
+        exportFormat: formatTxt.checked ? 'txt' : 'md'
+      });
+    } catch (err) {
+      console.error('Failed to save preferences:', err);
+    }
+  }
+
+  // Wires change listeners
+  timestampToggle.addEventListener('change', saveSettings);
+  formatTxt.addEventListener('change', saveSettings);
+  formatMd.addEventListener('change', saveSettings);
+
+  /**
+   * Mutates the visual status indicator.
+   * @param {'idle' | 'active' | 'success' | 'error'} state
+   */
+  function updateStatusIndicator(state) {
     statusDot.className = `status-indicator-dot ${state}`;
   }
 
   /**
-   * Appends an entry line to the logger console
-   * @param {string | null} text
+   * Appends a safe log row entry to the logging container panel.
+   * @param {string} text
+   * @param {string} level
    */
-  function addLog(text, className = "") {
-    const entry = document.createElement("div");
-    entry.className = `log-entry ${className}`;
-    entry.textContent = text;
-    logsContainer.appendChild(entry);
-
-    // Auto-scroll to the bottom of logs
+  function addLogEntry(text, level) {
+    const log = document.createElement('div');
+    log.className = `log-entry ${level}`;
+    log.textContent = text;
+    logsContainer.appendChild(log);
     logsContainer.scrollTop = logsContainer.scrollHeight;
   }
 
-  /**
-   * Sends extraction command to content script.
-   * If the tab has no content script loaded, injects it programmatically.
-   * @param {number} tabId
-   */
-  function sendMessageWithInjectionFallback(tabId) {
-    chrome.tabs.sendMessage(
-      tabId,
-      { action: "extractTranscript" },
-      (/** @type {any} */ response) => {
-        // Detect if content script is missing/unloaded
-        if (chrome.runtime.lastError) {
-          addLog("Scraper not loaded. Injecting content script...", "info");
+  // Run the export workflow
+  exportBtn.addEventListener('click', async () => {
+    logsContainer.innerHTML = '';
+    statusPanel.classList.remove('collapsed');
+    updateStatusIndicator('active');
 
-          // Dynamic execution injection
-          chrome.scripting.executeScript(
-            {
-              target: { tabId: tabId },
-              files: ["content.js"],
-            },
-            () => {
-              if (chrome.runtime.lastError) {
-                console.error(
-                  "Script injection error:",
-                  chrome.runtime.lastError,
-                );
-                addLog(
-                  "Could not initialize the scraper. Please reload your YouTube page.",
-                  "error",
-                );
-                updateStatus("error");
-              } else {
-                addLog(
-                  "Scraper loaded successfully. Restarting search...",
-                  "success",
-                );
-                // Message again after minor initialization timeout
-                setTimeout(() => {
-                  chrome.tabs.sendMessage(
-                    tabId,
-                    { action: "extractTranscript" },
-                    handleExtractionResponse,
-                  );
-                }, 300);
-              }
-            },
-          );
-        } else {
-          handleExtractionResponse(response);
-        }
-      },
-    );
-  }
+    addLogEntry(i18n.get('findingTab'), 'working');
 
-  /**
-   * Processes data returned by content.js and compiles the file
-   * @param {{ success?: any; error?: any; data?: any; videoTitle?: any; }} response
-   */
-  function handleExtractionResponse(response) {
-    if (!response) {
-      addLog(
-        "No response from the page. Please reload the YouTube tab.",
-        "error",
-      );
-      updateStatus("error");
-      return;
+    try {
+      if (typeof chrome === 'undefined' || !chrome.tabs) {
+        throw new Error(i18n.get('noActiveTab'));
+      }
+
+      // 1. Fetch active window watched tab
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab) {
+        throw new Error(i18n.get('noActiveTab'));
+      }
+
+      if (!tab.url || !tab.url.includes('youtube.com/watch')) {
+        throw new Error(i18n.get('notWatchPage'));
+      }
+
+      if (tab.id === undefined) {
+        throw new Error(i18n.get('invalidTabId'));
+      }
+
+      // 2. Request extraction data via content helper coordinator
+      const { data, videoTitle } = await transcript.requestTranscript(tab.id, addLogEntry);
+
+      // 3. Compile output file format from registry
+      const includeTimestamps = timestampToggle.checked;
+      const formatType = formatTxt.checked ? 'txt' : 'md';
+
+      addLogEntry(i18n.get('assemblingExport', [formatType.toUpperCase()]), 'working');
+      const fileContent = formatters.format(formatType, data, videoTitle, { includeTimestamps });
+
+      // 4. Fire download blob to local downloads directory
+      addLogEntry(i18n.get('launchingDownload'), 'working');
+      const sanitizedName = download.sanitizeFilename(videoTitle);
+      const filename = `${sanitizedName}_transcript.${formatType}`;
+
+      await download.downloadTextFile(fileContent, filename);
+
+      addLogEntry(i18n.get('downloadComplete'), 'success');
+      updateStatusIndicator('success');
+
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      addLogEntry(msg, 'error');
+      updateStatusIndicator('error');
     }
-
-    if (!response.success) {
-      addLog(response.error || "Failed to locate transcript.", "error");
-      updateStatus("error");
-      return;
-    }
-
-    const { data, videoTitle } = response;
-    if (!data || data.length === 0) {
-      addLog("No lines found inside the transcript.", "error");
-      updateStatus("error");
-      return;
-    }
-
-    addLog(`Extracted ${data.length} transcript rows successfully!`, "success");
-
-    const includeTimestamps = timestampToggle.checked;
-    const format = formatTxt.checked ? "txt" : "md";
-
-    addLog(`Assembling ${format.toUpperCase()} export data...`, "working");
-
-    let fileContent = "";
-    const dateStr = new Date().toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-
-    if (format === "md") {
-      // Beautiful Markdown compilation
-      fileContent += `# YouTube Transcript Exporter\n\n`;
-      fileContent += `## Video: **${videoTitle}**\n\n`;
-      fileContent += `> Exported on ${dateStr}\n\n`;
-      fileContent += `---\n\n`;
-
-      data.forEach((/** @type {{ timestamp: any; text: any; }} */ line) => {
-        if (includeTimestamps && line.timestamp) {
-          // Bolded brackets format for timestamps
-          fileContent += `**[${line.timestamp}]** ${line.text}\n\n`;
-        } else {
-          fileContent += `${line.text}\n\n`;
-        }
-      });
-    } else {
-      // Plain text compilation
-      data.forEach((/** @type {{ timestamp: any; text: any; }} */ line) => {
-        if (includeTimestamps && line.timestamp) {
-          fileContent += `[${line.timestamp}] ${line.text}\n`;
-        } else {
-          fileContent += `${line.text}\n`;
-        }
-      });
-    }
-
-    addLog("Launching browser file download...", "working");
-    triggerDownload(fileContent, videoTitle, format);
-  }
-
-  /**
-   * Generates a safe filename and downloads the file as a Blob
-   * @param {BlobPart} content
-   * @param {string} title
-   * @param {string} extension
-   */
-  function triggerDownload(content, title, extension) {
-    // Remove invalid characters for OS filenames
-    const sanitizedTitle = title
-      .replace(/[\\/:*?"<>|]/g, "_")
-      .replace(/\s+/g, " ")
-      .trim()
-      .substring(0, 100);
-
-    const filename = `${sanitizedTitle}_transcript.${extension}`;
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const blobUrl = URL.createObjectURL(blob);
-
-    const downloadLink = document.createElement("a");
-    downloadLink.href = blobUrl;
-    downloadLink.download = filename;
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-
-    // Cleanup reference
-    setTimeout(() => {
-      document.body.removeChild(downloadLink);
-      URL.revokeObjectURL(blobUrl);
-      addLog("Download complete! File saved.", "success");
-      updateStatus("success");
-    }, 200);
-  }
+  });
 });

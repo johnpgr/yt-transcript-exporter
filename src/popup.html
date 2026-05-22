@@ -4,31 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>YouTube Transcript Exporter</title>
-  <!-- Google Fonts for premium typography -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="app-container" id="appContainer">
-    <!-- Header with Visual Branding -->
+    <!-- Header -->
     <header class="header">
       <div class="logo-container">
-        <svg class="logo-svg" viewBox="0 0 24 24" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#FF0000" />
-              <stop offset="50%" stop-color="#FF007F" />
-              <stop offset="100%" stop-color="#7F00FF" />
-            </linearGradient>
-          </defs>
-          <rect width="24" height="24" rx="6" fill="url(#logoGradient)" />
-          <path d="M10 8.5L15 12L10 15.5V8.5Z" fill="white" />
-          <path d="M7 18H17" stroke="white" stroke-width="1.5" stroke-linecap="round" />
-          <path d="M7 6H17" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+        <svg class="logo-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 8.5L15 12L10 15.5V8.5Z" fill="currentColor" />
+          <path d="M7 18H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          <path d="M7 6H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
         </svg>
-        <span class="logo-text">YT Transcript</span>
+        <span class="logo-text" data-i18n="appName">YT Transcript</span>
       </div>
       <span class="badge">v1.0</span>
     </header>
@@ -39,8 +27,8 @@
         <!-- Timestamp Toggle Option -->
         <div class="setting-row">
           <div class="setting-info">
-            <label for="timestampToggle" class="setting-title">Include Timestamps</label>
-            <span class="setting-desc">Add time indicators to each line</span>
+            <label for="timestampToggle" class="setting-title" data-i18n="includeTimestampsLabel">Include Timestamps</label>
+            <span class="setting-desc" data-i18n="includeTimestampsDesc">Add time indicators to each line</span>
           </div>
           <div class="toggle-wrapper">
             <input type="checkbox" id="timestampToggle" class="toggle-checkbox" checked />
@@ -53,8 +41,8 @@
         <!-- Format Option -->
         <div class="setting-row vertical">
           <div class="setting-info">
-            <span class="setting-title">Export Format</span>
-            <span class="setting-desc">Choose the output file structure</span>
+            <span class="setting-title" data-i18n="exportFormatLabel">Export Format</span>
+            <span class="setting-desc" data-i18n="exportFormatDesc">Choose the output file structure</span>
           </div>
           <div class="segmented-control">
             <input type="radio" id="formatTxt" name="exportFormat" value="txt" />
@@ -70,33 +58,28 @@
 
       <!-- Action Button -->
       <button class="action-btn" id="exportBtn">
-        <span class="btn-text">Export Transcript</span>
-        <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <span class="btn-text" data-i18n="exportBtnLabel">Export Transcript</span>
+        <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <polyline points="7 10 12 15 17 10" />
           <line x1="12" y1="15" x2="12" y2="3" />
         </svg>
       </button>
 
-      <!-- Status Logs / Progress -->
+      <!-- Status Logs -->
       <div class="status-panel collapsed" id="statusPanel">
         <div class="panel-header">
-          <span class="panel-title">Progress Logs</span>
+          <span class="panel-title" data-i18n="progressLogsLabel">Progress Logs</span>
           <span class="status-indicator-dot idle" id="statusDot"></span>
         </div>
         <div class="logs-container" id="logsContainer">
-          <!-- Dynamically filled logs go here -->
-          <div class="log-entry system">Ready to extract.</div>
+          <div class="log-entry system" data-i18n="readyToExtract">Ready to extract.</div>
         </div>
       </div>
     </main>
-
-    <!-- Sleek Footer -->
-    <footer class="footer">
-      <span>Designed with Absolute Quality</span>
-    </footer>
   </div>
   
-  <script src="popup.js"></script>
+  <!-- Load entry coordinator as standard native ES module -->
+  <script type="module" src="popup.js"></script>
 </body>
 </html>
